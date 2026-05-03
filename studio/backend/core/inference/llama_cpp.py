@@ -1383,6 +1383,17 @@ class LlamaCppBackend:
             logger.warning(f"Could not download mmproj: {e}")
             return None
 
+    @staticmethod
+    def _detect_local_mmproj(gguf_path: str) -> Optional[str]:
+        """Find a sibling local mmproj file for multimodal GGUF models."""
+        try:
+            from utils.models.model_config import detect_mmproj_file
+
+            return detect_mmproj_file(gguf_path, search_root = gguf_path)
+        except Exception as e:
+            logger.debug(f"Could not detect local mmproj for {gguf_path}: {e}")
+            return None
+
     # ── Lifecycle ─────────────────────────────────────────────────
 
     def load_model(
@@ -1450,6 +1461,11 @@ class LlamaCppBackend:
             if not Path(gguf_path).is_file():
                 raise FileNotFoundError(f"GGUF file not found: {gguf_path}")
             model_path = gguf_path
+            if not mmproj_path:
+                mmproj_path = self._detect_local_mmproj(gguf_path)
+                if mmproj_path:
+                    is_vision = True
+                    logger.info(f"Auto-detected local mmproj: {mmproj_path}")
         else:
             raise ValueError("Either gguf_path or hf_repo must be provided")
 
@@ -2000,10 +2016,14 @@ class LlamaCppBackend:
                             "Some Ollama models do not work with llama.cpp. "
                             "Try a different model, or use this model directly through Ollama instead."
                         )
-                raise RuntimeError(
+                output_tail = "\n".join(self._stdout_lines[-30:]).strip()
+                detail = (
                     "llama-server failed to start. "
                     "Check that the GGUF file is valid and you have enough memory."
                 )
+                if output_tail:
+                    detail = f"{detail}\n\nllama-server output:\n{output_tail}"
+                raise RuntimeError(detail)
 
             self._healthy = True
 
