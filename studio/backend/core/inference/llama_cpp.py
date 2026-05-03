@@ -1885,11 +1885,21 @@ class LlamaCppBackend:
                 ]:
                     if os.path.isdir(cuda_lib):
                         lib_dirs.append(cuda_lib)
-                existing_ld = env.get("LD_LIBRARY_PATH", "")
                 new_ld = ":".join(lib_dirs)
-                env["LD_LIBRARY_PATH"] = (
-                    f"{new_ld}:{existing_ld}" if existing_ld else new_ld
-                )
+                # macOS' dyld ignores LD_LIBRARY_PATH and uses
+                # DYLD_FALLBACK_LIBRARY_PATH / DYLD_LIBRARY_PATH instead.
+                # Without this, the prebuilt llama-server crashes with
+                # SIGSEGV (exit -11) the moment it tries to resolve its
+                # bundled libllama.dylib / libggml*.dylib.
+                if sys.platform == "darwin":
+                    for var in ("DYLD_FALLBACK_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+                        existing = env.get(var, "")
+                        env[var] = f"{new_ld}:{existing}" if existing else new_ld
+                else:
+                    existing_ld = env.get("LD_LIBRARY_PATH", "")
+                    env["LD_LIBRARY_PATH"] = (
+                        f"{new_ld}:{existing_ld}" if existing_ld else new_ld
+                    )
 
             # Pin to selected GPU(s). On ROCm, llama-server (and any torch
             # in the subprocess) honors HIP_VISIBLE_DEVICES / ROCR_VISIBLE_DEVICES;
