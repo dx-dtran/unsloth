@@ -11,6 +11,7 @@ through its OpenAI-compatible /v1/chat/completions endpoint.
 import atexit
 import contextlib
 import json
+import os
 import re
 import struct
 import structlog
@@ -492,7 +493,10 @@ class LlamaCppBackend:
                     return str(win_bin)
 
         # 2–4. ~/.unsloth/llama.cpp (primary — setup.sh / setup.ps1 build here)
-        unsloth_home = Path.home() / ".unsloth" / "llama.cpp"
+        if root := os.environ.get("UNSLOTH_STUDIO_HOME"):
+            unsloth_home = Path(root).expanduser().resolve() / "llama.cpp"
+        else:
+            unsloth_home = Path.home() / ".unsloth" / "llama.cpp"
         # Root dir (make builds copy binaries here)
         home_root = unsloth_home / binary_name
         if home_root.is_file():
@@ -508,8 +512,31 @@ class LlamaCppBackend:
             if home_win.is_file():
                 return str(home_win)
 
-        # 5–6. Legacy: in-tree build (older setup.sh / setup.ps1 versions)
+        # 4b. Local source install fallback: check .studio/llama.cpp relative to
+        # the repo root.  With an editable ("pip install -e") checkout,
+        # Path(__file__).resolve().parents[4] is the repo root, so
+        # repo/.studio/llama.cpp is exactly where install-source.sh places the
+        # binary.  Safe to check even without UNSLOTH_STUDIO_HOME being set
+        # (e.g. the user forgot to activate the venv but the server still started
+        # via some other means).  On a normal (non-editable) install parents[4]
+        # is site-packages, so repo/.studio never exists there — harmless miss.
         project_root = Path(__file__).resolve().parents[4]
+        local_studio_home = project_root / ".studio" / "llama.cpp"
+        if local_studio_home.is_dir():
+            local_root = local_studio_home / binary_name
+            if local_root.is_file():
+                return str(local_root)
+            local_bin = local_studio_home / "build" / "bin" / binary_name
+            if local_bin.is_file():
+                return str(local_bin)
+            if sys.platform == "win32":
+                local_win = (
+                    local_studio_home / "build" / "bin" / "Release" / binary_name
+                )
+                if local_win.is_file():
+                    return str(local_win)
+
+        # 5–6. Legacy: in-tree build (older setup.sh / setup.ps1 versions)
         # Root dir (make builds)
         root_path = project_root / "llama.cpp" / binary_name
         if root_path.is_file():
@@ -1777,7 +1804,11 @@ class LlamaCppBackend:
             import sys
 
             env = os.environ.copy()
-            binary_dir = str(Path(binary).parent)
+            # Resolve symlinks so binary_dir points to the directory that
+            # actually contains the binary and its shared libs (on Linux the
+            # prebuilt layout is install_dir/llama-server -> build/bin/llama-server
+            # and the .so files live in build/bin/, not in install_dir/).
+            binary_dir = str(Path(binary).resolve().parent)
 
             if sys.platform == "win32":
                 # On Windows, CUDA DLLs (cublas64_12.dll, cudart64_12.dll, etc.)
@@ -2078,10 +2109,19 @@ class LlamaCppBackend:
             install_roots: list[Path] = []
 
             # Primary install dir (setup.sh / prebuilt installer)
-            install_roots.append(Path.home() / ".unsloth" / "llama.cpp")
+            if root := os.environ.get("UNSLOTH_STUDIO_HOME"):
+                install_roots.append(Path(root).expanduser().resolve() / "llama.cpp")
+            else:
+                install_roots.append(Path.home() / ".unsloth" / "llama.cpp")
+
+            # Local source install: .studio/llama.cpp relative to the repo root
+            # (mirrors the 4b fallback in _find_llama_server_binary)
+            project_root = Path(__file__).resolve().parents[4]
+            local_studio_llama = project_root / ".studio" / "llama.cpp"
+            if local_studio_llama.is_dir():
+                install_roots.append(local_studio_llama)
 
             # Legacy in-tree build dirs (older setup.sh versions)
-            project_root = Path(__file__).resolve().parents[4]
             install_roots.append(project_root / "llama.cpp")
 
             # Legacy: extracted binary
