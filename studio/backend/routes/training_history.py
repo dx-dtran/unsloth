@@ -7,10 +7,9 @@ Training history API routes — browse, view, and delete past training runs.
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from loggers import get_logger
 
-from auth.authentication import get_current_subject
 from models import (
     TrainingRunDeleteResponse,
     TrainingRunDetailResponse,
@@ -29,7 +28,6 @@ router = APIRouter()
 async def list_training_runs(
     limit: int = Query(50, ge = 1, le = 200),
     offset: int = Query(0, ge = 0),
-    current_subject: str = Depends(get_current_subject),
 ):
     """List training runs, newest first."""
     result = list_runs(limit = limit, offset = offset)
@@ -42,7 +40,6 @@ async def list_training_runs(
 @router.get("/runs/{run_id}", response_model = TrainingRunDetailResponse)
 async def get_training_run_detail(
     run_id: str,
-    current_subject: str = Depends(get_current_subject),
 ):
     """Get a single training run with full config and metrics."""
     run = get_run(run_id)
@@ -67,7 +64,6 @@ async def get_training_run_detail(
 @router.delete("/runs/{run_id}", response_model = TrainingRunDeleteResponse)
 async def delete_training_run(
     run_id: str,
-    current_subject: str = Depends(get_current_subject),
 ):
     """Delete a training run and its metrics (CASCADE)."""
     run = get_run(run_id)

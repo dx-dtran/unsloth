@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 import structlog
 from loggers import get_logger
@@ -21,9 +21,6 @@ from loggers import get_logger
 backend_path = Path(__file__).parent.parent.parent
 if str(backend_path) not in sys.path:
     sys.path.insert(0, str(backend_path))
-
-# Auth
-from auth.authentication import get_current_subject
 
 # Import backend functions
 try:
@@ -52,7 +49,6 @@ logger = get_logger(__name__)
 @router.post("/load-checkpoint", response_model = ExportOperationResponse)
 async def load_checkpoint(
     request: LoadCheckpointRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Load a checkpoint into the export backend.
@@ -130,7 +126,6 @@ async def load_checkpoint(
 
 @router.post("/cleanup", response_model = ExportOperationResponse)
 async def cleanup_export_memory(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Cleanup export-related models from memory (GPU/CPU).
@@ -163,7 +158,6 @@ async def cleanup_export_memory(
 
 @router.get("/status", response_model = ExportStatusResponse)
 async def get_export_status(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Get current export backend status (loaded checkpoint, model type, PEFT flag).
@@ -197,7 +191,6 @@ def _export_details(output_path: Optional[str]) -> Optional[Dict[str, Any]]:
 @router.post("/export/merged", response_model = ExportOperationResponse)
 async def export_merged_model(
     request: ExportMergedModelRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Export a merged PEFT model (e.g., 16-bit or 4-bit) and optionally push to Hub.
@@ -237,7 +230,6 @@ async def export_merged_model(
 @router.post("/export/base", response_model = ExportOperationResponse)
 async def export_base_model(
     request: ExportBaseModelRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Export a non-PEFT base model and optionally push to Hub.
@@ -277,7 +269,6 @@ async def export_base_model(
 @router.post("/export/gguf", response_model = ExportOperationResponse)
 async def export_gguf(
     request: ExportGGUFRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Export the current model to GGUF format and optionally push to Hub.
@@ -316,7 +307,6 @@ async def export_gguf(
 @router.post("/export/lora", response_model = ExportOperationResponse)
 async def export_lora_adapter(
     request: ExportLoRAAdapterRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Export only the LoRA adapter (if the loaded model is PEFT).
@@ -389,7 +379,6 @@ async def stream_export_logs(
         None,
         description = "Return log entries with seq strictly greater than this cursor.",
     ),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Stream live stdout/stderr output from the export worker subprocess

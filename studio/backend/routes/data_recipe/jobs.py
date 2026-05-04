@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -56,20 +55,6 @@ def _resolve_local_v1_endpoint(request: Request) -> str:
             parsed = urlparse(str(request.base_url))
             port = parsed.port if parsed.port is not None else 8888
     return f"http://127.0.0.1:{int(port)}/v1"
-
-
-def _request_has_desktop_access_token(request: Request) -> bool:
-    auth_header = request.headers.get("authorization")
-    if not auth_header:
-        return False
-
-    parts = auth_header.split(None, 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        return False
-
-    from auth.authentication import is_desktop_access_token
-
-    return is_desktop_access_token(parts[1])
 
 
 def _used_llm_model_aliases(recipe: dict[str, Any]) -> set[str]:
@@ -236,7 +221,6 @@ def _inject_local_providers(recipe: dict[str, Any], request: Request) -> Optiona
     }
 
     token = ""
-    internal_key_id: Optional[int] = None
     if local_names & referenced_providers:
         # Verify a model is loaded.
         # NOTE: This is a point-in-time check (TOCTOU). The model could be unloaded
@@ -256,22 +240,6 @@ def _inject_local_providers(recipe: dict[str, Any], request: Request) -> Optiona
             raise ValueError(
                 "No model loaded in Chat. Load a model first, then run the recipe."
             )
-
-        from auth import storage  # deferred: avoids circular import
-
-        # Mint an internal sk-unsloth-* key scoped to this workflow run.
-        # Uses the unified API-key issuance path (one mint/revoke/verify
-        # surface instead of a second JWT code path). The key is marked
-        # internal so it is hidden from the user's API-key list, and the
-        # caller revokes it when the job terminates.
-        expires_at = (datetime.now(timezone.utc) + timedelta(hours = 24)).isoformat()
-        token, row = storage.create_api_key(
-            username = "unsloth",
-            name = "data-recipe workflow",
-            expires_at = expires_at,
-            internal = True,
-        )
-        internal_key_id = int(row["id"])
 
     # Defensively strip any stale "external"-only fields the frontend may
     # have left on the dict (extra_headers/extra_body/api_key_env). The UI
@@ -328,7 +296,7 @@ def _inject_local_providers(recipe: dict[str, Any], request: Request) -> Optiona
     # small GGUFs stop wasting the full max_tokens budget on broken JSON.
     _inject_local_structured_response_format(recipe, local_names)
 
-    return internal_key_id
+    return None
 
 
 def _normalize_run_name(value: Any) -> str | None:
@@ -373,47 +341,22 @@ def create_job(payload: RecipePayload, request: Request):
             ) from exc
 
     try:
-        internal_api_key_id = _inject_local_providers(recipe, request)
+        _inject_local_providers(recipe, request)
     except ValueError as exc:
         raise HTTPException(status_code = 400, detail = str(exc)) from exc
 
-    # Single try block covers get_job_manager() AND mgr.start() so a workflow
-    # key minted above never outlives the request even when an unexpected
-    # exception type (TypeError from a stale kwarg, OSError from a queue
-    # write, etc.) bubbles up. Without the bare except, such exceptions let
-    # the sk-unsloth-* key live until its 24h TTL.
     try:
         mgr = get_job_manager()
         job_id = mgr.start(
             recipe = recipe,
             run = run,
-            internal_api_key_id = internal_api_key_id,
         )
     except RuntimeError as exc:
-        if internal_api_key_id is not None:
-            _revoke_internal_api_key_safe(internal_api_key_id)
         raise HTTPException(status_code = 409, detail = str(exc)) from exc
     except ValueError as exc:
-        if internal_api_key_id is not None:
-            _revoke_internal_api_key_safe(internal_api_key_id)
         raise HTTPException(status_code = 400, detail = str(exc)) from exc
-    except Exception:
-        if internal_api_key_id is not None:
-            _revoke_internal_api_key_safe(internal_api_key_id)
-        raise
 
     return {"job_id": job_id}
-
-
-def _revoke_internal_api_key_safe(key_id: int) -> None:
-    """Best-effort revoke of a workflow-minted key; swallow any error so
-    that revocation failures never mask the caller's own error path."""
-    try:
-        from auth import storage  # deferred: avoids circular import
-
-        storage.revoke_internal_api_key(key_id)
-    except Exception:
-        pass
 
 
 @router.get("/jobs/{job_id}/status")

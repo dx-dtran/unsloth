@@ -515,35 +515,6 @@ def test_openai_sdk_tool_calling(base_url: str, api_key: str):
     )
 
 
-def test_invalid_key_rejected(base_url: str):
-    """Requests with a bad API key should be rejected."""
-    status, _text = _http(
-        "POST",
-        f"{base_url}/v1/chat/completions",
-        body = {
-            "messages": [{"role": "user", "content": "Hello"}],
-            "stream": False,
-        },
-        headers = {"Authorization": "Bearer sk-unsloth-boguskey123"},
-    )
-    assert status == 401, f"Expected 401 for invalid key, got {status}"
-    print("  PASS  invalid API key rejected (401)")
-
-
-def test_no_key_rejected(base_url: str):
-    """Requests without any auth header should be rejected."""
-    status, _text = _http(
-        "POST",
-        f"{base_url}/v1/chat/completions",
-        body = {
-            "messages": [{"role": "user", "content": "Hello"}],
-            "stream": False,
-        },
-    )
-    assert status == 401 or status == 403, f"Expected 401/403 for no key, got {status}"
-    print(f"  PASS  no API key rejected ({status})")
-
-
 # ── Anthropic SSE helper ─────────────────────────────────────────────
 
 
@@ -784,9 +755,10 @@ def test_anthropic_tool_choice_any(base_url: str, api_key: str):
 
 
 def _start_server(model: str, variant: str | None) -> tuple[subprocess.Popen, str]:
-    """Launch ``unsloth studio run`` and parse the API key from its banner.
+    """Launch ``unsloth studio run`` and wait until the health endpoint responds.
 
-    Returns (process, api_key).
+    Returns (process, api_key) where api_key is an empty string since auth
+    has been removed from the backend.
     """
     cmd = [
         "unsloth",
@@ -798,8 +770,6 @@ def _start_server(model: str, variant: str | None) -> tuple[subprocess.Popen, st
         str(PORT),
         "--host",
         HOST,
-        "--api-key-name",
-        "test",
     ]
     if variant:
         cmd.extend(["--gguf-variant", variant])
@@ -813,9 +783,11 @@ def _start_server(model: str, variant: str | None) -> tuple[subprocess.Popen, st
         preexec_fn = os.setsid,
     )
 
-    # Wait for the banner containing the API key
-    api_key = None
+    # Wait for the server to become healthy
+    import urllib.request
+    health_url = f"http://{HOST}:{PORT}/api/health"
     deadline = time.monotonic() + STARTUP_TIMEOUT
+    ready = False
     while time.monotonic() < deadline:
         time.sleep(2)
         if proc.poll() is not None:
@@ -824,22 +796,24 @@ def _start_server(model: str, variant: str | None) -> tuple[subprocess.Popen, st
             raise RuntimeError(
                 f"Server exited early (code {proc.returncode}):\n{log_text[-2000:]}"
             )
-        log_text = LOG_FILE.read_text()
-        m = re.search(r"API Key:\s+(sk-unsloth-[a-f0-9]+)", log_text)
-        if m:
-            api_key = m.group(1)
-            break
+        try:
+            with urllib.request.urlopen(health_url, timeout=2) as resp:
+                if resp.status == 200:
+                    ready = True
+                    break
+        except Exception:
+            pass
 
-    if not api_key:
+    if not ready:
         log_text = LOG_FILE.read_text()
         _kill_server(proc)
         raise RuntimeError(
-            f"Timed out waiting for API key in server output:\n{log_text[-2000:]}"
+            f"Timed out waiting for server to become healthy:\n{log_text[-2000:]}"
         )
 
     # Wait a moment for the model to be fully loaded
     time.sleep(2)
-    return proc, api_key
+    return proc, ""
 
 
 def _kill_server(proc: subprocess.Popen):

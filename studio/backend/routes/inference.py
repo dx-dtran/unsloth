@@ -10,7 +10,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from typing import Any, Optional, Union
 import json
@@ -186,8 +186,6 @@ from core.inference.anthropic_compat import (
     AnthropicStreamEmitter,
     AnthropicPassthroughEmitter,
 )
-from auth.authentication import get_current_subject
-
 import io
 import wave
 import base64
@@ -344,7 +342,6 @@ def get_llama_cpp_backend() -> LlamaCppBackend:
 async def load_model(
     request: LoadRequest,
     fastapi_request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Load a model for inference.
@@ -758,7 +755,6 @@ async def load_model(
 @router.post("/validate", response_model = ValidateModelResponse)
 async def validate_model(
     request: ValidateModelRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Lightweight validation endpoint for model identifiers.
@@ -808,7 +804,6 @@ async def validate_model(
 @router.post("/unload", response_model = UnloadResponse)
 async def unload_model(
     request: UnloadRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Unload a model from memory.
@@ -839,7 +834,6 @@ async def unload_model(
 @studio_router.post("/cancel")
 async def cancel_inference(
     request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """Cancel in-flight inference requests.
 
@@ -881,7 +875,6 @@ async def cancel_inference(
 @router.post("/generate/stream")
 async def generate_stream(
     request: GenerateRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Generate a chat response with Server-Sent Events (SSE) streaming.
@@ -954,7 +947,6 @@ async def generate_stream(
 
 @router.get("/status", response_model = InferenceStatusResponse)
 async def get_status(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Get current inference backend status.
@@ -1059,7 +1051,6 @@ async def get_status(
 
 @router.get("/load-progress", response_model = LoadProgressResponse)
 async def get_load_progress(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Return the active GGUF load's mmap/upload progress.
@@ -1094,7 +1085,6 @@ async def get_load_progress(
 async def generate_audio(
     payload: ChatCompletionRequest,
     request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Generate audio (TTS) from the latest user message.
@@ -1277,7 +1267,6 @@ def _extract_content_parts(
 async def openai_chat_completions(
     payload: ChatCompletionRequest,
     request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     OpenAI-compatible chat completions endpoint.
@@ -2213,31 +2202,11 @@ async def serve_sandbox_file(
     session_id: str,
     filename: str,
     request: Request,
-    token: Optional[str] = None,
 ):
     """
     Serve image files created by Python tool execution.
-
-    Accepts auth via Authorization header OR ?token= query param
-    (needed because <img src> cannot send custom headers).
     """
     from fastapi.responses import FileResponse
-
-    # ── Authentication (header or query param) ──────────────────
-    auth_header = request.headers.get("authorization")
-    if auth_header and auth_header.lower().startswith("bearer "):
-        jwt_token = auth_header[7:]
-    elif token:
-        jwt_token = token
-    else:
-        raise HTTPException(
-            status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "Missing authentication token",
-        )
-    from fastapi.security import HTTPAuthorizationCredentials
-
-    creds = HTTPAuthorizationCredentials(scheme = "Bearer", credentials = jwt_token)
-    await get_current_subject(creds)
 
     # ── Filename sanitization ───────────────────────────────────
     safe_filename = os.path.basename(filename)
@@ -2289,7 +2258,6 @@ async def serve_sandbox_file(
 
 @router.get("/models")
 async def openai_list_models(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     OpenAI-compatible model listing endpoint.
@@ -2332,7 +2300,6 @@ async def openai_list_models(
 @router.post("/completions")
 async def openai_completions(
     request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     OpenAI-compatible text completions endpoint (non-chat).
@@ -2409,7 +2376,6 @@ async def openai_completions(
 @router.post("/embeddings")
 async def openai_embeddings(
     request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     OpenAI-compatible embeddings endpoint.
@@ -3146,7 +3112,6 @@ async def _responses_stream(
 async def openai_responses(
     payload: ResponsesRequest,
     request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     OpenAI Responses API endpoint.
@@ -3232,7 +3197,6 @@ def _normalize_anthropic_openai_images(
 async def anthropic_messages(
     payload: AnthropicMessagesRequest,
     request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Anthropic-compatible Messages API endpoint.

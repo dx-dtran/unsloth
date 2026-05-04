@@ -130,15 +130,8 @@ class JobManager:
         *,
         recipe: dict,
         run: dict,
-        internal_api_key_id: int | None = None,
     ) -> str:
-        """Spawn the job subprocess (one at a time, no cap).
-
-        ``internal_api_key_id`` is the row id of a workflow-scoped
-        sk-unsloth-* key minted by the route layer for local providers.
-        JobManager revokes it when the job reaches a terminal state so the
-        key's live window is no longer than the run.
-        """
+        """Spawn the job subprocess (one at a time, no cap)."""
         llm_columns = recipe.get("columns") or []
         llm_column_count = 0
         if isinstance(llm_columns, list):
@@ -161,7 +154,6 @@ class JobManager:
             self._job.source_progress_estimated_total = _github_source_estimated_total(
                 recipe
             )
-            self._job.internal_api_key_id = internal_api_key_id
             self._events.clear()
             self._seq = 0
 
@@ -548,22 +540,7 @@ class JobManager:
         self._emit(event)
 
     def _retire_workflow_key(self, job: Job) -> None:
-        """Revoke the workflow-scoped sk-unsloth-* key, if one was minted.
-
-        Best-effort: revocation failures are swallowed. The key would
-        expire on its own after 24h, so a missed revoke is a latency
-        concern, not a correctness one.
-        """
-        key_id = getattr(job, "internal_api_key_id", None)
-        if not key_id:
-            return
-        try:
-            from auth import storage  # deferred: avoids circular import
-
-            storage.revoke_internal_api_key(int(key_id))
-        except Exception:
-            pass
-        job.internal_api_key_id = None
+        pass
 
 
 _JOB_MANAGER: JobManager | None = None

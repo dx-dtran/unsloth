@@ -93,13 +93,7 @@ def studio_server(request):
     """
     external_url = os.environ.get("UNSLOTH_E2E_BASE_URL")
     if external_url:
-        api_key = os.environ.get("UNSLOTH_E2E_API_KEY")
-        if not api_key:
-            pytest.skip(
-                "UNSLOTH_E2E_BASE_URL is set but UNSLOTH_E2E_API_KEY is "
-                "missing — tests that require auth cannot run against an "
-                "external server without it.",
-            )
+        api_key = os.environ.get("UNSLOTH_E2E_API_KEY", "")
         yield external_url, api_key
         return
 
