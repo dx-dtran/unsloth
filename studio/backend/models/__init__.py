@@ -27,12 +27,6 @@ from .models import (
     LoRAScanResponse,
     ModelListResponse,
 )
-from .auth import (
-    AuthLoginRequest,
-    RefreshTokenRequest,
-    AuthStatusResponse,
-    ChangePasswordRequest,
-)
 from .export import (
     LoadCheckpointRequest,
     ExportStatusResponse,
@@ -42,7 +36,6 @@ from .export import (
     ExportGGUFRequest,
     ExportLoRAAdapterRequest,
 )
-from .users import Token
 from .datasets import (
     CheckFormatRequest,
     CheckFormatResponse,
@@ -88,11 +81,6 @@ __all__ = [
     "LoRAInfo",
     "LoRAScanResponse",
     "ModelListResponse",
-    # Auth schemas
-    "AuthLoginRequest",
-    "RefreshTokenRequest",
-    "AuthStatusResponse",
-    "ChangePasswordRequest",
     # Export schemas
     "CheckpointInfo",
     "ModelCheckpoints",
@@ -104,7 +92,6 @@ __all__ = [
     "ExportBaseModelRequest",
     "ExportGGUFRequest",
     "ExportLoRAAdapterRequest",
-    "Token",
     # Dataset schemas
     "CheckFormatRequest",
     "CheckFormatResponse",

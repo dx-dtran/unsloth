@@ -11,7 +11,7 @@ import os
 import sys
 import uuid
 from pathlib import Path
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 from typing import List, Optional
 import structlog
 from loggers import get_logger
@@ -29,8 +29,6 @@ def _is_valid_repo_id(repo_id: str) -> bool:
 backend_path = Path(__file__).parent.parent.parent
 if str(backend_path) not in sys.path:
     sys.path.insert(0, str(backend_path))
-
-from auth.authentication import get_current_subject
 
 # Import backend functions
 try:
@@ -680,7 +678,6 @@ async def list_local_models(
     models_dir: str = Query(
         default = "./models", description = "Directory to scan for local model folders"
     ),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     List local model candidates from custom models dir, HF cache,
@@ -817,7 +814,6 @@ async def list_local_models(
 
 @router.get("/scan-folders")
 async def get_scan_folders(
-    current_subject: str = Depends(get_current_subject),
 ):
     """List all registered custom model scan folders."""
     from storage.studio_db import list_scan_folders
@@ -828,7 +824,6 @@ async def get_scan_folders(
 @router.post("/scan-folders", response_model = ScanFolderInfo, status_code = 201)
 async def add_scan_folder_endpoint(
     body: AddScanFolderRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """Register a new directory to scan for local models."""
     from storage.studio_db import add_scan_folder
@@ -845,7 +840,6 @@ async def add_scan_folder_endpoint(
 @router.delete("/scan-folders/{folder_id}")
 async def remove_scan_folder_endpoint(
     folder_id: int,
-    current_subject: str = Depends(get_current_subject),
 ):
     """Remove a registered custom scan folder."""
     from storage.studio_db import remove_scan_folder
@@ -857,7 +851,6 @@ async def remove_scan_folder_endpoint(
 
 @router.get("/recommended-folders")
 async def get_recommended_folders(
-    current_subject: str = Depends(get_current_subject),
 ):
     """Return well-known model directories that exist on this machine.
 
@@ -1255,7 +1248,6 @@ async def browse_folders(
         False,
         description = "Include entries whose name starts with a dot",
     ),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     List immediate subdirectories of *path* for the Custom Folders picker.
@@ -1431,7 +1423,6 @@ async def browse_folders(
 
 @router.get("/list")
 async def list_models(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     List available models (default models and loaded models).
@@ -1547,7 +1538,6 @@ def _get_model_size_bytes(
 async def get_model_config(
     model_name: str,
     hf_token: Optional[str] = Query(None),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Get configuration for a specific model.
@@ -1635,7 +1625,6 @@ async def scan_loras(
     exports_dir: str = Query(
         default = str(exports_root()), description = "Directory to scan for exported models"
     ),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Scan for trained LoRA adapters and exported models.
@@ -1687,7 +1676,6 @@ async def scan_loras(
 @router.get("/loras/{lora_path:path}/base-model", response_model = LoRABaseModelResponse)
 async def get_lora_base_model(
     lora_path: str,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Get the base model for a LoRA adapter.
@@ -1720,7 +1708,6 @@ async def get_lora_base_model(
 @router.get("/check-vision/{model_name:path}", response_model = VisionCheckResponse)
 async def check_vision_model(
     model_name: str,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Check if a model is a vision model.
@@ -1748,7 +1735,6 @@ async def check_vision_model(
 async def check_embedding_model(
     model_name: str,
     hf_token: Optional[str] = Query(None),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Check if a model is an embedding model.
@@ -1782,7 +1768,6 @@ async def get_gguf_variants(
     hf_token: Optional[str] = Query(
         None, description = "HuggingFace token for private repos"
     ),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     List available GGUF quantization variants for a HuggingFace repo
@@ -1892,7 +1877,6 @@ async def get_gguf_download_progress(
     repo_id: str = Query(..., description = "HuggingFace repo ID"),
     variant: str = Query("", description = "Quantization variant (e.g. UD-TQ1_0)"),
     expected_bytes: int = Query(0, description = "Expected total download size in bytes"),
-    current_subject: str = Depends(get_current_subject),
 ):
     """Return download progress by checking cached GGUF files for a specific variant.
 
@@ -1969,7 +1953,6 @@ def _resolve_hf_cache_realpath(repo_dir: Path) -> Optional[str]:
 @router.get("/download-progress")
 async def get_download_progress(
     repo_id: str = Query(..., description = "HuggingFace repo ID"),
-    current_subject: str = Depends(get_current_subject),
 ):
     """Return download progress for any HuggingFace model repo.
 
@@ -2151,7 +2134,6 @@ def _repo_has_gguf_files(repo_info) -> bool:
 
 @router.get("/cached-gguf")
 async def list_cached_gguf(
-    current_subject: str = Depends(get_current_subject),
 ):
     """List GGUF repos downloaded to HF cache, legacy Unsloth cache, and HF default cache."""
     try:
@@ -2188,7 +2170,6 @@ async def list_cached_gguf(
 
 @router.get("/cached-models")
 async def list_cached_models(
-    current_subject: str = Depends(get_current_subject),
 ):
     """List non-GGUF model repos downloaded to HF cache, legacy Unsloth cache, and HF default cache."""
     _WEIGHT_EXTENSIONS = (".safetensors", ".bin")
@@ -2241,7 +2222,6 @@ async def list_cached_models(
 async def delete_cached_model(
     repo_id: str = Body(...),
     variant: Optional[str] = Body(None),
-    current_subject: str = Depends(get_current_subject),
 ):
     """Delete a cached model repo (or a specific GGUF variant) from the HF cache.
 
@@ -2368,7 +2348,6 @@ async def list_checkpoints(
         default = str(outputs_root()),
         description = "Directory to scan for checkpoints",
     ),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     List available checkpoints in the outputs directory.

@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, HTTPException, Query, UploadFile
 import re as _re
 import structlog
 from loggers import get_logger
@@ -67,7 +67,6 @@ if str(backend_path) not in sys.path:
 
 # Import dataset utilities
 from utils.datasets import check_dataset_format
-from auth.authentication import get_current_subject
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -318,7 +317,6 @@ def _sanitize_filename(filename: str) -> str:
 @router.post("/upload", response_model = UploadDatasetResponse)
 async def upload_dataset(
     file: UploadFile,
-    current_subject: str = Depends(get_current_subject),
 ) -> UploadDatasetResponse:
     filename = _sanitize_filename(file.filename or "dataset_upload")
     ext = Path(filename).suffix.lower()
@@ -348,7 +346,6 @@ async def upload_dataset(
 
 @router.get("/local", response_model = LocalDatasetsResponse)
 def list_local_datasets(
-    current_subject: str = Depends(get_current_subject),
 ) -> LocalDatasetsResponse:
     return LocalDatasetsResponse(datasets = _build_local_dataset_items())
 
@@ -358,7 +355,6 @@ async def get_dataset_download_progress(
     repo_id: str = Query(
         ..., description = "HuggingFace dataset repo ID, e.g. 'unsloth/LaTeX_OCR'"
     ),
-    current_subject: str = Depends(get_current_subject),
 ):
     """Return download progress for a HuggingFace dataset repo.
 
@@ -439,7 +435,6 @@ async def get_dataset_download_progress(
 @router.post("/check-format", response_model = CheckFormatResponse)
 def check_format(
     request: CheckFormatRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Check if a dataset requires manual column mapping.
@@ -632,7 +627,6 @@ def check_format(
 @router.post("/ai-assist-mapping", response_model = AiAssistMappingResponse)
 def ai_assist_mapping(
     request: AiAssistMappingRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Run LLM-assisted dataset conversion advisor (user-triggered).

@@ -7,7 +7,7 @@ Training API routes
 
 import sys
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from typing import Dict, Optional, Any
 import structlog
@@ -35,9 +35,6 @@ except ImportError:
     from core.training import get_training_backend
     from utils.models.model_config import load_model_defaults
     from utils.paths import resolve_dataset_path
-
-# Auth
-from auth.authentication import get_current_subject
 
 from models import (
     TrainingStartRequest,
@@ -82,7 +79,6 @@ def _validate_local_dataset_paths(
 
 @router.get("/hardware")
 async def get_hardware_utilization(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Get a live snapshot of GPU hardware utilization.
@@ -97,7 +93,6 @@ async def get_hardware_utilization(
 
 @router.get("/hardware/visible")
 async def get_visible_hardware_utilization(
-    current_subject: str = Depends(get_current_subject),
 ):
     from utils.hardware import get_visible_gpu_utilization
 
@@ -107,7 +102,6 @@ async def get_visible_hardware_utilization(
 @router.post("/start")
 async def start_training(
     request: TrainingStartRequest,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Start a training job.
@@ -292,7 +286,6 @@ async def start_training(
 @router.post("/stop", response_model = TrainingStopResponse)
 async def stop_training(
     body: TrainingStopRequest = TrainingStopRequest(),
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Stop the currently running training job.
@@ -327,7 +320,6 @@ async def stop_training(
 
 @router.post("/reset")
 async def reset_training(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Reset training state so the user can return to configuration.
@@ -382,7 +374,6 @@ async def reset_training(
 
 @router.get("/status")
 async def get_training_status(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Get the current training status.
@@ -471,7 +462,6 @@ async def get_training_status(
 
 @router.get("/metrics", response_model = TrainingMetricsResponse)
 async def get_training_metrics(
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Get training metrics (loss, learning rate, steps).
@@ -512,7 +502,6 @@ async def get_training_metrics(
 @router.get("/progress")
 async def stream_training_progress(
     request: Request,
-    current_subject: str = Depends(get_current_subject),
 ):
     """
     Stream training progress updates using Server-Sent Events (SSE).
