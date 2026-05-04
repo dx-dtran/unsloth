@@ -3,7 +3,6 @@
 
 import { createRoute } from "@tanstack/react-router";
 import { lazy } from "react";
-import { requireAuth } from "../auth-guards";
 import { Route as rootRoute } from "./__root";
 
 export type OnboardingSearch = { redirectTo?: string };
@@ -17,7 +16,6 @@ const WizardLayout = lazy(() =>
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: "/onboarding",
-  beforeLoad: () => requireAuth(),
   validateSearch: (search: Record<string, unknown>): OnboardingSearch => ({
     redirectTo: typeof search.redirectTo === "string" ? search.redirectTo : undefined,
   }),

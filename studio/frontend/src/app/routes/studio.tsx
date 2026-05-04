@@ -3,7 +3,6 @@
 
 import { createRoute } from "@tanstack/react-router";
 import { lazy } from "react";
-import { requireAuth } from "../auth-guards";
 import { Route as rootRoute } from "./__root";
 
 const StudioPage = lazy(() =>
@@ -15,6 +14,5 @@ const StudioPage = lazy(() =>
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: "/studio",
-  beforeLoad: () => requireAuth(),
   component: StudioPage,
 });
